@@ -25,6 +25,7 @@
 #include <Engine/ResourceTypes/SceneFormats/HatchSceneReader.h>
 #include <Engine/ResourceTypes/SceneFormats/RSDKSceneReader.h>
 #include <Engine/ResourceTypes/SceneFormats/TiledMapReader.h>
+#include <Engine/ResourceTypes/SceneFormats/LDtkLevelReader.h>
 #include <Engine/Scene/SceneInfo.h>
 #include <Engine/TextFormats/XML/XMLNode.h>
 #include <Engine/TextFormats/XML/XMLParser.h>
@@ -2221,6 +2222,9 @@ void Scene::ReadSceneFile(const char* filename) {
 			}
 			else if (StringUtils::StrCaseStr(filename, ".hcsn")) {
 				HatchSceneReader::Read(filename, pathParent);
+			}
+			else if (StringUtils::StrCaseStr(filename, ".ldtkl")) {
+				LDtkLevelReader::Read(filename, pathParent);
 			}
 			else {
 				TiledMapReader::Read(filename, pathParent);

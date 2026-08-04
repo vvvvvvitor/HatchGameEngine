@@ -152,7 +152,8 @@ CPPFILES := \
 	source/Engine/ResourceTypes/ResourceManager.cpp \
 	source/Engine/ResourceTypes/SceneFormats/HatchSceneReader.cpp \
 	source/Engine/ResourceTypes/SceneFormats/RSDKSceneReader.cpp \
-	source/Engine/ResourceTypes/SceneFormats/TiledMapReader.cpp \
+	source/Engine/ResourceTypes/SceneFormats/TiledLevelReader.cpp \
+	source/Engine/ResourceTypes/SceneFormats/LDtkLevelReader.cpp \
 	source/Engine/ResourceTypes/SoundFormats/OGG.cpp \
 	source/Engine/ResourceTypes/SoundFormats/SoundFormat.cpp \
 	source/Engine/ResourceTypes/SoundFormats/WAV.cpp \
@@ -396,6 +397,7 @@ PUBHFILES := \
 	source/Engine/ResourceTypes/SceneFormats/HatchSceneTypes.h \
 	source/Engine/ResourceTypes/SceneFormats/RSDKSceneReader.h \
 	source/Engine/ResourceTypes/SceneFormats/TiledMapReader.h \
+	source/Engine/ResourceTypes/SceneFormats/LDtkLevelReader.h \
 	source/Engine/ResourceTypes/SoundFormats/OGG.h \
 	source/Engine/ResourceTypes/SoundFormats/SoundFormat.h \
 	source/Engine/ResourceTypes/SoundFormats/WAV.h \
