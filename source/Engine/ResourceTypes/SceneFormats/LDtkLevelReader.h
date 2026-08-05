@@ -15,6 +15,7 @@
 #include "Libraries/jsmn.h"
 
 struct LDtkLayer {
+	char *Name;
 	char *Tileset = "";
 	bool Visible = true;
 	Uint32 CellWidth = 16;

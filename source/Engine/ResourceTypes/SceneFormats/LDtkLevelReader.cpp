@@ -68,26 +68,27 @@ bool LDtkLevelReader::MatchToken(const char *ldtkl, jsmntok_t* token, const char
 bool LDtkLevelReader::LoadTileset(char *tileset, const char* parentFolder) {
 	int curTileCount = (int)Scene::TileSpriteInfos.size();
 
-	char tilesetFile[MAX_RESOURCE_PATH_LENGTH];
-	snprintf(tilesetFile, sizeof(tilesetFile), "%s%s", parentFolder, tileset);
+	char resourcePath[MAX_RESOURCE_PATH_LENGTH];
+	char path[MAX_RESOURCE_PATH_LENGTH];
+	snprintf(path, sizeof(path), "%s%s", parentFolder, tileset);
 
-	StringUtils::NormalizePath(tileset, tilesetFile, MAX_RESOURCE_PATH_LENGTH);
+	StringUtils::NormalizePath(path, resourcePath, MAX_RESOURCE_PATH_LENGTH);
 
-	if (StringUtils::StartsWith(tilesetFile, "../")) {
-		if (Application::DevMode) {
-			Log::Print(Log::LOG_WARN, "Path \"%s\" is outside of Resources.", tilesetFile);
-		}
-		return false;
-	}
-
-	// If it does not exist
-	if (!ResourceManager::ResourceExists(tilesetFile)) {
-		Log::Print(Log::LOG_ERROR, "Resource \"%s\" does not exist!", tilesetFile);
-		return false;
-	}
+	// if (StringUtils::StartsWith(resourcePath, "../")) {
+	// 	if (Application::DevMode) {
+	// 		Log::Print(Log::LOG_WARN, "Path \"%s\" is outside of Resources.", resourcePath);
+	// 	}
+	// 	return false;
+	// }
+	//
+	// // If it does not exist
+	// if (!ResourceManager::ResourceExists(resourcePath)) {
+	// 	Log::Print(Log::LOG_ERROR, "Resource \"%s\" does not exist!", resourcePath);
+	// 	return false;
+	// }
 
 	ISprite* tileSprite = new ISprite();
-	Texture* spriteSheet = tileSprite->AddSpriteSheet(tilesetFile);
+	Texture* spriteSheet = tileSprite->AddSpriteSheet(resourcePath);
 	if (!spriteSheet) {
 		delete tileSprite;
 		return false;
@@ -134,7 +135,7 @@ bool LDtkLevelReader::LoadTileset(char *tileset, const char* parentFolder) {
 			0,
 			curTileCount,
 			Scene::TileSpriteInfos.size(),
-			tilesetFile);
+			resourcePath);
 		Scene::Tilesets.push_back(sceneTileset);
 	}
 
@@ -142,33 +143,20 @@ bool LDtkLevelReader::LoadTileset(char *tileset, const char* parentFolder) {
 }
 
 TileLayer *LDtkLevelReader::ReadLayer(LDtkLayer *levelLayer, int width, int height) {
-	char* name = "test";
-	Uint8 drawBehavior = 0;
-	Uint8 drawGroup = 0;
-	Uint16 relativeY = 0;
-	Uint16 constantY = 0;
-
 	TileLayer* layer = new TileLayer(width, height);
-	layer->Name = name;
+	layer->Name = levelLayer->Name;
 	layer->Flags = SceneLayer::FLAGS_COLLIDEABLE;
 	layer->Visible = levelLayer->Visible;
-
-	if (drawGroup & 0x10) {
-		drawGroup &= 0xF;
-		layer->Visible = false;
-	}
-
-	layer->DrawGroup = drawGroup;
-	layer->DrawBehavior = drawBehavior;
-
-	layer->RelativeY = (float)relativeY / 0x100;
-	layer->ConstantY = (float)constantY / 0x100;
-
-	layer->ScrollInfoCount = 0;
+	layer->OffsetX = -levelLayer->OffsetX;
+	layer->OffsetY = -levelLayer->OffsetY;
 
 	for (size_t i = 0; i != width * height; i++) {
-		layer->Tiles[i] = 1;
+		layer->Tiles[i] = 2;
 	}
+
+	memcpy(layer->TilesBackup, layer->Tiles, layer->DataSize);
+
+	return layer;
 }
 
 
@@ -208,97 +196,131 @@ void LDtkLevelReader::Read(const char* sourceF, const char* parentFolder) {
 				break;
 			}
 
-			int levelWidth = 8;
-			int levelHeight = 8;
+			int levelWidth = 0;
+			int levelHeight = 0;
 
 			// TODO: Use malloc?
 			LDtkLayer* layers[MAX_LAYER_COUNT];
 			int curLayer = -1;
 			size_t layerCount = 0;
 
-			const jsmntok_t* layersToken = nullptr;
+			// const jsmntok_t* layersToken = nullptr;
+			int layersTokenIdx = -1;
+			int layerDataTokenIdx = -1;
 
 			// First token is useless.
 			for (int i = 1; i != result; i++) {
 				jsmntok_t& token = tokens[i];
 
 				if (LDtkLevelReader::IsTokenKey(&token)) {
-					if (LDtkLevelReader::MatchToken(ldtkl, &token, "layerInstances")) {
-						layersToken = &token;
+					jsmntok_t& value = tokens[i+1];
+
+					if (LDtkLevelReader::MatchToken(ldtkl, &token, "pxWid")) {
+						levelWidth = (int)LDtkLevelReader::TokenToFloat(ldtkl, &tokens[i+1]);
 						continue;
 					}
 
-					// if (LDtkLevelReader::MatchToken(ldtkl, &token, ""))
-					// TODO: Read tileset!
-				}
+					if (LDtkLevelReader::MatchToken(ldtkl, &token, "pxHei")) {
+						levelHeight = (int)LDtkLevelReader::TokenToFloat(ldtkl, &tokens[i+1]);
+						continue;
+					}
 
-				if (layersToken != nullptr) {
-					if (token.type == JSMN_OBJECT) {
-						if (curLayer != layerCount) {
-							curLayer++;
-							layers[curLayer] = new LDtkLayer();
-						} else {
-							layersToken = nullptr;
+					if (layersTokenIdx == -1) {
+						if (LDtkLevelReader::MatchToken(ldtkl, &token, "layerInstances")) {
+							layersTokenIdx = i;
+							// curLayer = 0;
+							continue;
 						}
 					} else {
-						// We assume it's the layers array as it's the next token after "layerInstances".
-						if (curLayer == -1) {
-							layerCount = token.size;
-						} else {
-							if (LDtkLevelReader::IsTokenKey(&token)) {
-								jsmntok_t& value = tokens[i+1];
-
-								if (MatchToken(ldtkl, &token, "__cWid")) {
-									layers[curLayer]->CellWidth = (Uint32)TokenToFloat(ldtkl, &value);
-									continue;
-								}
-
-								if (MatchToken(ldtkl, &token, "__cHei")) {
-									layers[curLayer]->CellHeight = (Uint32)TokenToFloat(ldtkl, &value);
-									continue;
-								}
-
-								if (MatchToken(ldtkl, &token, "__pxTotalOffsetX")) {
-									layers[curLayer]->OffsetX = TokenToFloat(ldtkl, &value);
-									continue;
-								}
-
-								if (MatchToken(ldtkl, &token, "__pxTotalOffsetY")) {
-									layers[curLayer]->OffsetY = TokenToFloat(ldtkl, &value);
-									continue;
-								}
-
-								if (MatchToken(ldtkl, &token, "__tilesetRelPath")) {
-									layers[curLayer]->Tileset = TokenToString(ldtkl, &value);
-									continue;
-								}
-
-								if (MatchToken(ldtkl, &token, "visible")) {
-									layers[curLayer]->OffsetX = TokenToBool(ldtkl, &value);
-									continue;
-								}
-
-								// Log::Print(Log::LOG_INFO, "%.*s", token.end - token.start, ldtkl + token.start);
+						if (layerDataTokenIdx == -1) {
+							if (MatchToken(ldtkl, &token, "gridTiles")) {
+								layerDataTokenIdx = i;
 							}
+						} else {
+							if (layers[])
 						}
+
+						printf("%i\n", (i - layersTokenIdx) % (tokens[layersTokenIdx + 2].size));
+						// if (i - layersTokenIdx % tokens[layersTokenIdx + 2].size == 0) {
+						// 	curLayer++;
+						// }
 					}
 				}
+				//
+				// if (layersToken != nullptr) {
+				// 	if (token.type == JSMN_OBJECT) {
+				// 		if (curLayer != layerCount) {
+				// 			curLayer++;
+				// 			layers[curLayer] = new LDtkLayer();
+				// 		} else {
+				// 			layersToken = nullptr;
+				// 		}
+				// 	} else {
+				// 		// We assume it's the layers array as it's the next token after "layerInstances".
+				// 		if (curLayer == -1) {
+				// 			layerCount = token.size;
+				// 		} else {
+				// 			if (LDtkLevelReader::IsTokenKey(&token)) {
+				// 				jsmntok_t& value = tokens[i+1];
+				//
+				// 				if (MatchToken(ldtkl, &token, "__identifier")) {
+				// 					layers[curLayer]->Name = TokenToString(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "__cWid")) {
+				// 					layers[curLayer]->CellWidth = (Uint32)TokenToFloat(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "__cHei")) {
+				// 					layers[curLayer]->CellHeight = (Uint32)TokenToFloat(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "__pxTotalOffsetX")) {
+				// 					layers[curLayer]->OffsetX = TokenToFloat(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "__pxTotalOffsetY")) {
+				// 					layers[curLayer]->OffsetY = TokenToFloat(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "__tilesetRelPath")) {
+				// 					layers[curLayer]->Tileset = TokenToString(ldtkl, &value);
+				// 					continue;
+				// 				}
+				//
+				// 				if (MatchToken(ldtkl, &token, "visible")) {
+				// 					layers[curLayer]->OffsetX = TokenToBool(ldtkl, &value);
+				// 					continue;
+				// 				}
+
+								// Log::Print(Log::LOG_INFO, "%.*s", token.end - token.start, ldtkl + token.start);
+							// }
+						// }
+					// }
+				// }
 			}
-
-			Scene::SceneType = SCENETYPE_LDTK;
-
-			Scene::FreePriorityLists();
-			Scene::PriorityPerLayer = BASE_PRIORITY_PER_LAYER;
-			Scene::InitPriorityLists();
-
-			for (int i = 0; i != layerCount; i++) {
-				LDtkLayer *levelLayer = layers[i];
-				if (!LDtkLevelReader::LoadTileset(levelLayer->Tileset, parentFolder)) {
-					continue;
-				}
-
-				TileLayer* layer = LDtkLevelReader::ReadLayer(levelLayer, levelWidth, levelHeight);
-			}
+			//
+			// Scene::SceneType = SCENETYPE_LDTK;
+			//
+			// Scene::FreePriorityLists();
+			// Scene::PriorityPerLayer = BASE_PRIORITY_PER_LAYER;
+			// Scene::InitPriorityLists();
+			//
+			// for (int i = 0; i != layerCount; i++) {
+			// 	LDtkLayer *levelLayer = layers[i];
+			// 	if (!LDtkLevelReader::LoadTileset(levelLayer->Tileset, parentFolder)) {
+			// 		continue;
+			// 	}
+			//
+			// 	TileLayer* layer = LDtkLevelReader::ReadLayer(levelLayer, levelWidth / Scene::TileWidth, levelHeight / Scene::TileHeight);
+			//
+			// 	Scene::AddLayer(layer);
+			// }
 
 			// Pretty sure there aren't layer properties in LDtk.
 			// TODO: Check if there are layer properties in LDtk.
